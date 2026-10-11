@@ -1,6 +1,19 @@
 # TypeScript Todo List
 
-This repository is a learning project for building a complete to-do application with a TypeScript HTTP API, SQLite persistence, and an HTMX user interface. This document is the implementation plan: follow the milestones in order and do not move to the next milestone until the listed verification passes.
+This repository is a learning project for building a complete to-do application with a TypeScript HTTP API, SQLite persistence, and an HTMX user interface. This document is the implementation plan: complete the incremental goals below, respecting their prerequisites and passing each completion gate before building on it.
+
+## Current scaffold status
+
+The files in the target structure below now exist as planning placeholders. Each
+new file explains its purpose and outlines pseudocode in its native comment
+syntax. There is no implemented application, SQL migration, template markup,
+stylesheet, or automated test suite yet. Configuration files also contain only
+planning comments; `.env.example` documents commented safe defaults.
+
+The existing npm scripts and dependencies describe the intended tooling. Build,
+lint, test, and server commands are implementation milestones, not evidence that
+this comment-only scaffold runs. Follow the plan below when replacing the
+placeholders with real code.
 
 ## Final application
 
@@ -194,30 +207,256 @@ HTML forms use `application/x-www-form-urlencoded`. Tags are submitted as a comm
 
 `app.ts` constructs and configures Express without opening a socket. `server.ts` owns process startup. Keeping these separate lets route tests exercise the application in memory.
 
+## Incremental development goals
+
+Each goal is a separate development task with a reviewable result. “Independent”
+means it can be developed and tested once its listed prerequisites are complete;
+it does not require implementing a later goal. Component goals use focused tests;
+G9 and G10 add explicit running-server checks.
+The numbered implementation sections below supply the detailed domain and HTTP
+contracts for these goals. All goals are initially incomplete.
+
+| Goal | Deliverable | Prerequisites | Detailed section |
+| --- | --- | --- | --- |
+| G1 | Working compiler, formatter, linter, and test runner | None | 1 |
+| G2 | Validated configuration and safe error mapping | G1 | 3 |
+| G3 | Isolated SQLite connections and repeatable migrations | G1 | 2 |
+| G4 | Domain/input types and strict request schemas | G1 | 5 |
+| G5 | Transactional task repository | G3, G4 | 4 |
+| G6 | Task business rules and lifecycle | G2, G4, G5 | 6 |
+| G7 | JSON API tested without a listening server | G2, G6 | 7, 9 |
+| G8 | HTML forms and HTMX fragments | G7 | 8 |
+| G9 | Runnable server, readiness, and shutdown | G3, G7, G8 | 9 |
+| G10 | Fresh-checkout and browser acceptance | G1–G9 | 10 |
+
+A straightforward order is G1 → G2 → G3 → G4 → G5 → G6 → G7 → G8 → G9 → G10.
+G2, G3, and G4 can also be developed separately after G1. Keep the purpose comments
+when replacing placeholders so the responsibilities remain clear.
+
+### Rules for completing a goal
+
+- Replace only the placeholders needed by that goal and add its real tests.
+- Use explicit dependency injection: database into repository, repository and clock
+  into service, service and readiness check into app. Unit tests can use typed
+  doubles; persistence tests must use isolated SQLite and the real migration.
+- Keep unfinished comment-only test files out of test discovery using explicit
+  Vitest exclusions during development. Remove each exclusion when its real tests
+  are added, and remove all placeholder exclusions by G10. Do not use an option
+  that treats zero discovered tests as success.
+- Run the goal's focused tests plus `npm run build` and `npm run lint`. Rerun
+  previously completed test files when changing their interfaces. A gate requires
+  real assertions, successful exit codes, and cleanup of test resources.
+- Record the completed goal, changed files, and verification commands in the PR.
+  Do not mark future goals complete because the current tests pass.
+
+### G1 — Make the tooling usable
+
+**Files:** `tsconfig.json`, `vitest.config.ts`, `eslint.config.js`,
+`prettier.config.js`, and `package.json` only if script changes are necessary.
+Add `tests/tooling.test.ts` for this goal; this file is not in the original tree.
+
+1. Select Node from `.nvmrc` and install from the existing lockfile using `npm ci`.
+2. Replace the configuration comments with strict TypeScript, Vitest, ESLint, and
+   Prettier settings. Keep the current CommonJS package mode consistent with the
+   compiler and JavaScript config exports. If a tool requires a different config
+   module format, use its explicit supported file extension and document it.
+3. Limit production compilation to `src/` with output in `dist/`; run tests through
+   Vitest. Exclude unfinished test placeholders as described above.
+4. Add a compiler integration test using temporary fixtures and the project compiler
+   settings: a valid TypeScript file compiles, while assigning null to a required
+   string fails strict checking. Keep fixtures outside application source, and
+   remove generated files after the test. This verifies the tooling actually runs.
+
+**Gate:** `npm test -- tests/tooling.test.ts`, `npm run build`, and `npm run lint`
+pass. The test runner reports an executed test. No application or server is needed.
+
+### G2 — Validate settings and map errors safely
+
+**Files:** `src/config.ts`, `src/errors.ts`, `.env.example`,
+`tests/config.test.ts`; add `tests/errors.test.ts`.
+
+1. Expose a configuration parser accepting supplied environment values so tests
+   do not depend on the developer's `.env`. Apply documented defaults when values
+   are absent; reject explicit empty values and invalid ports.
+2. Define typed validation, not-found, and conflict errors plus a shared safe
+   response mapper. Keep error mapping testable without a real database or router.
+3. Activate the nonsecret defaults in `.env.example`. Do not create a tracked `.env`.
+4. Test default/override behavior, invalid settings, known status codes and details,
+   and unknown failures. Assert internal messages and stack traces are omitted
+   from client responses and available only to the injected server logger.
+
+**Gate:** `npm test -- tests/config.test.ts tests/errors.test.ts` passes, along with
+build/lint. Configuration and error mapping work without later application wiring.
+
+### G3 — Open and migrate isolated databases
+
+**Files:** `src/db/connection.ts`, `src/db/migrate.ts`,
+`migrations/001-create-todos.sql`; add `tests/db/connection.test.ts` and
+`tests/db/migrate.test.ts`.
+
+1. Open a configured SQLite path, create its parent directory when needed, enable
+   foreign keys on every connection, and provide explicit close/readiness operations.
+2. Implement the schema in section 2 and transactionally apply numbered migrations.
+3. Test table/index creation and enabled foreign keys. Run migrations twice and
+   assert versions and schema are unchanged on the second run.
+4. In a temporary directory, supply a deliberately failing migration and assert
+   its schema changes and version insert roll back. Verify a subsequent corrected
+   migration can succeed. Close connections and remove temporary files after tests.
+
+**Gate:** `npm test -- tests/db/connection.test.ts tests/db/migrate.test.ts` passes,
+plus build/lint. No repository, service, or HTTP application is required.
+
+### G4 — Define types and validate input
+
+**Files:** `src/validation/todo-schemas.ts`,
+`tests/validation/todo-schemas.test.ts`.
+
+1. Export the `Todo`, status, create/update input, and filter types needed at
+   module boundaries. Keep these aligned with the domain and HTTP contracts.
+2. Implement strict schemas for IDs, filters, create payloads, partial updates,
+   and related-task parameters. Preserve omitted versus explicitly null fields.
+3. Cover boundary lengths, actual calendar dates, unknown/server-managed fields,
+   empty patches, and status/reason combinations. A patch may depend on stored
+   state; defer merged-state checks to G6 instead of requiring absent patch fields.
+
+**Gate:** `npm test -- tests/validation/todo-schemas.test.ts` passes, plus build/lint.
+Validation tests require no database, service, or server.
+
+### G5 — Persist tasks atomically
+
+**Files:** `src/db/todo-repository.ts`, `tests/db/todo-repository.test.ts`.
+
+1. Implement every repository operation in section 4 using parameterized statements
+   and types from G4. Return complete mapped tasks and distinguish missing rows.
+2. Put each logical task-plus-tag/relationship mutation inside one transaction.
+   Store each related pair once and expose it from either task.
+3. Test CRUD, filters, collection replacement, symmetric relationships, descendant
+   detection, parent deletion, and rollback after a constraint failure.
+4. Open a fresh migrated database for each test and close it afterward. Supply
+   normalized valid inputs directly; domain decisions belong to G6.
+
+**Gate:** `npm test -- tests/db/todo-repository.test.ts` passes, plus build/lint.
+Repository behavior is verified without an HTTP layer or service implementation.
+
+### G6 — Enforce the complete task lifecycle
+
+**Files:** `src/services/todo-service.ts`, `tests/services/todo-service.test.ts`.
+
+1. Inject the G5 repository and a fixed-clock-capable `now` function. Implement
+   all eleven domain rules and the lifecycle table above.
+2. Merge updates with stored state before validating dates/status/reason. Preserve
+   omitted values, normalize tags, and enforce existence and relationship cycles.
+3. Test each allowed/forbidden transition, missing tasks/references, timestamp
+   behavior, and repository failure propagation using typed doubles.
+4. Add an isolated SQLite integration case proving a failed multi-table mutation
+   leaves the previous task and its links intact.
+
+**Gate:** `npm test -- tests/services/todo-service.test.ts` passes, plus build/lint.
+The complete service is usable directly without Express or browser templates.
+
+### G7 — Expose the JSON API in memory
+
+**Files:** `src/app.ts`, `src/routes/api-todos.ts`, `tests/helpers/test-app.ts`,
+`tests/routes/api-todos.test.ts`; add `tests/routes/health.test.ts`.
+
+1. Introduce `createApp` now, rather than waiting for G9: inject service, readiness
+   check, and logger; register parsing, health, JSON routes, and safe error handling.
+   Add web routes in G8. Keep this factory free of socket and database ownership.
+2. Implement every JSON endpoint in the HTTP contract with boundary validation,
+   documented response codes, the creation Location header, and consistent errors.
+3. Build the isolated migrated-database fixture and exercise the app with Supertest.
+   Cover success, validation, not-found where applicable, and injected database
+   failure for every REST operation, plus malformed JSON and relationship conflicts.
+4. Test health success and failed readiness independently; assert generic 503.
+
+**Gate:** `npm test -- tests/routes/api-todos.test.ts tests/routes/health.test.ts`
+passes, plus build/lint. Tests require neither `server.ts` nor an externally
+listening process.
+
+### G8 — Render usable forms and HTMX fragments
+
+**Files:** `src/routes/web-todos.ts`, `src/views/`, `public/styles.css`,
+`src/app.ts`, `tests/routes/web-todos.test.ts`.
+
+1. Register Nunjucks with autoescaping, static assets, and the HTML routes. Build
+   the layout/page/partials and responsive accessible styling described in section 8.
+2. Translate form fields to shared service inputs. Use real forms for all mutations
+   and redirects for ordinary successful submissions.
+3. Define explicit HTMX targets/swaps for each action and return appropriate
+   fragments. Ensure validation responses with status 422 are displayed by the
+   chosen HTMX response-handling configuration; test this in the G10 browser check.
+4. Test full pages, edit forms, filters, empty state, escaping, all form actions,
+   fragment responses, inline errors, redirects, missing tasks, and safe failures.
+
+**Gate:** `npm test -- tests/routes/web-todos.test.ts` passes, plus build/lint.
+Server-rendered behavior is independently testable in memory. Live browser
+interaction remains an explicit G10 acceptance requirement.
+
+### G9 — Start and stop the application reliably
+
+**Files:** `src/server.ts`, `src/app.ts` if wiring adjustments are needed;
+add `tests/server.test.ts`.
+
+1. Load/validate configuration, open the database, run migrations, build dependencies,
+   then listen. Follow the route ordering and health contract in section 9.
+2. Handle startup failures and graceful SIGINT/SIGTERM shutdown. Expose lifecycle
+   functions or inject process/listener dependencies to test cleanup without exiting
+   the test runner.
+3. Test startup order, migration failure preventing listening, resources closing
+   after partial startup failure, and both shutdown signals stopping the listener
+   before closing the database.
+
+**Gate:** `npm test -- tests/server.test.ts tests/routes/health.test.ts` passes,
+plus build/lint. Start `npm run dev` with a temporary database path and verify
+`/health` returns 200; stop it and confirm the process releases its port/resources.
+
+### G10 — Prove the feature works from a fresh checkout
+
+**Files:** README setup instructions and any corrections discovered by acceptance.
+
+1. Remove all exclusions for unfinished placeholder tests; every planned test must
+   now contain real assertions. Run `nvm use`, `npm ci`, then the full lint/build/test
+   gates in section 10. Confirm production startup with `npm run build` and
+   `npm start`, as well as watch-mode startup with `npm run dev`.
+2. Run the documented HTTP smoke checks. Create a task, restart the server, and
+   confirm it persists; use a disposable database for this acceptance run.
+3. In the browser, create/edit/delete/filter tasks, exercise all lifecycle actions,
+   tags, related tasks, and parent/child links. Verify pause reasons and invalid
+   dates show errors without losing submitted values. Confirm fragment updates
+   with HTMX and successful normal forms with JavaScript disabled.
+4. Check keyboard access and a narrow viewport. Capture UI screenshots for the PR.
+   Verify no local database, secrets, dependencies, output, or coverage are tracked.
+
+**Gate:** Every item in the final definition of done below is verified. Record
+commands, browser results, and screenshots; focused unit tests alone do not finish
+this goal.
+
 ## Step-by-step implementation
 
 ### 1. Prepare the repository
 
-Select the declared Node version and create the package manifest:
+The manifest, lockfile, dependencies, and conventional scripts already exist.
+Select the declared Node version and install the locked dependencies:
 
 ```bash
 nvm use
-npm init -y
+npm ci
 ```
 
-Install runtime dependencies:
+Do not reinitialize the package. If reconstructing the manifest in a new scaffold,
+the intended runtime dependencies are installed with:
 
 ```bash
 npm install express better-sqlite3 zod nunjucks dotenv
 ```
 
-Install development dependencies:
+For a new scaffold, install development dependencies with:
 
 ```bash
 npm install --save-dev typescript tsx @types/node @types/express @types/better-sqlite3 @types/nunjucks vitest supertest @types/supertest eslint @eslint/js typescript-eslint prettier
 ```
 
-Add the following scripts to `package.json`:
+Keep these existing scripts in `package.json`:
 
 ```json
 {
@@ -333,7 +572,7 @@ Implement `src/db/migrate.ts` to:
 
 Make startup create the parent directory for `DATABASE_PATH`, but never commit the generated database.
 
-Verification: migrate a temporary empty database, inspect its tables, run migration a second time, and confirm the second run makes no changes and reports no error.
+Verification: follow G3, including automated connection, migration idempotency, and rollback tests against isolated databases.
 
 ### 3. Add configuration and application errors
 
@@ -341,7 +580,7 @@ In `src/config.ts`, validate environment values once at startup with Zod. Export
 
 In `src/errors.ts`, create typed application errors for validation, not-found, and conflict cases. Add one final Express error middleware that converts known errors to the common error envelope and logs unknown errors without exposing stack traces or SQL messages.
 
-Verification: add unit tests showing invalid ports and missing/empty database paths fail fast with readable messages.
+Verification: follow G2. An absent database path uses the documented default; an explicitly empty path fails fast. Test invalid ports and safe error mapping as well.
 
 ### 4. Implement the repository
 
@@ -439,11 +678,11 @@ Verification:
 npm test -- tests/routes/web-todos.test.ts
 ```
 
-Then run the server and manually verify create, edit, filter, lifecycle transitions, and delete with browser developer tools showing no full-page navigation for HTMX actions.
+After G9 provides a runnable server, perform the G10 browser checks for create, edit, filter, lifecycle transitions, and delete, with developer tools showing no full-page navigation for HTMX actions.
 
 ### 9. Compose and start the application
 
-In `src/app.ts`, export a `createApp` function that accepts explicit dependencies and returns the configured Express application. Register routes in this order:
+Extend the `createApp` factory introduced in G7 and the web wiring added in G8. It accepts explicit dependencies and returns the configured Express application. Register routes in this order:
 
 1. request parsing and static assets;
 2. `/health`;
@@ -464,7 +703,7 @@ Return `503` with the generic error envelope when the database readiness check f
 
 ### 10. Run the complete verification suite
 
-Run all automated gates from a clean checkout after `npm install`:
+Run all automated gates from a clean checkout after `nvm use` and `npm ci`:
 
 ```bash
 npm run lint

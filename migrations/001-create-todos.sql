@@ -1,0 +1,11 @@
+-- Purpose: Plan the initial normalized task schema and integrity constraints.
+-- Planning placeholder only; no executable SQL or implemented migration.
+-- Pseudocode:
+-- CREATE todos with name, description, planned/actual dates, updated time, status,
+-- pause reason, and nullable parent reference; derive isPaused rather than store it.
+-- CONSTRAIN name/status/date ordering, pause reason, and direct self-parent links.
+-- CREATE unique case-insensitive tags and a todo_tags join table.
+-- CREATE related_todos with a unique smaller/larger ID pair and no self-links.
+-- CASCADE deleted task links; SET NULL on child parent references when parent deleted.
+-- INDEX status, parent, and reverse tag lookup; track migration versions via runner.
+-- APPLY atomically; use service validation to prevent indirect parent cycles.
