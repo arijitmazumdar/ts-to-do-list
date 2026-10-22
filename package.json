@@ -4,6 +4,7 @@
   "description": "This repository is a learning project for building a complete to-do application with a TypeScript HTTP API, SQLite persistence, and an HTMX user interface. This document is the implementation plan: follow the milestones in order and do not move to the next milestone until the listed verification passes.",
   "main": "index.js",
   "scripts": {
+    "check:goals": "node tools/check-goals.cjs",
     "dev": "tsx watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",

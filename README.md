@@ -209,6 +209,44 @@ HTML forms use `application/x-www-form-urlencoded`. Tags are submitted as a comm
 
 ## Incremental development goals
 
+Check progress against the G1–G10 gates with:
+
+```bash
+nvm use
+node tools/check-goals.cjs
+# Equivalent npm shortcut:
+npm run check:goals
+```
+
+The checker works from any working directory when invoked by its path and uses
+only Node built-ins. It checks the exact Node version in `.nvmrc`, rejects missing
+or scaffold-placeholder files, runs build/lint once, and runs each eligible goal's
+focused tests through `npm test`. Tests must produce a Vitest JSON report covering
+every required test file, with executed assertions and no skipped, todo, failed,
+or exclusive tests. G10 also runs the full suite. Each command has a two-minute
+timeout, and temporary reports are removed afterward. Build/lint are skipped while
+the tooling configs are still placeholders or the required Node version is unavailable.
+
+The report prints a verified count and one status per goal: `verified`, `failed`,
+`blocked`, or `needs manual verification`. Prerequisite automated gates must pass
+before dependent goals are checked. A passing gate is evidence from the tests,
+not an audit that they cover every requirement; review coverage against each goal below. G9's live
+server checks and G10's fresh-checkout/browser acceptance remain explicit manual
+requirements, so this script alone can verify at most eight of the ten goals.
+Record those manual results in the PR as required below. Exit code `0` means all
+automated gates passed (manual checks may remain), `1` means failed or blocked
+goals, and `2` means the checker could not finish.
+
+The checker does not install dependencies, launch servers, or open the developer's
+database. Build/lint/test scripts execute repository code and may produce their
+normal output such as `dist/`; tests must follow the database-isolation rules below.
+The checker uses the existing scaffold configs without changing them. To test the
+checker independently before G1 is implemented, after installing dependencies run:
+
+```bash
+npm test -- --config tools/vitest.config.mjs
+```
+
 Each goal is a separate development task with a reviewable result. “Independent”
 means it can be developed and tested once its listed prerequisites are complete;
 it does not require implementing a later goal. Component goals use focused tests;
