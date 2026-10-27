@@ -33,11 +33,7 @@ const GOALS = [
     id: 'G3',
     name: 'SQLite connections and migrations',
     prerequisites: ['G1'],
-    files: [
-      'src/db/connection.ts',
-      'src/db/migrate.ts',
-      'migrations/001-create-todos.sql',
-    ],
+    files: ['src/db/connection.ts', 'src/db/migrate.ts', 'migrations/001-create-todos.sql'],
     tests: ['tests/db/connection.test.ts', 'tests/db/migrate.test.ts'],
   },
   {
@@ -65,11 +61,7 @@ const GOALS = [
     id: 'G7',
     name: 'JSON API',
     prerequisites: ['G2', 'G6'],
-    files: [
-      'src/app.ts',
-      'src/routes/api-todos.ts',
-      'tests/helpers/test-app.ts',
-    ],
+    files: ['src/app.ts', 'src/routes/api-todos.ts', 'tests/helpers/test-app.ts'],
     tests: ['tests/routes/api-todos.test.ts', 'tests/routes/health.test.ts'],
   },
   {
@@ -116,9 +108,7 @@ function inspectFiles(root, files) {
         problems.push(`unfinished: ${file}`);
       }
     } catch (error) {
-      problems.push(
-        `${error.code === 'ENOENT' ? 'missing' : 'unreadable'}: ${file}`,
-      );
+      problems.push(`${error.code === 'ENOENT' ? 'missing' : 'unreadable'}: ${file}`);
     }
   }
   return problems;
@@ -151,9 +141,7 @@ function testReportProblems(root, expectedFiles, report) {
     !Array.isArray(report.testResults) ||
     report.testResults.length === 0
   ) {
-    return [
-      'test report must show passing tests with no failures, skips, or todos',
-    ];
+    return ['test report must show passing tests with no failures, skips, or todos'];
   }
 
   const problems = [];
@@ -163,9 +151,7 @@ function testReportProblems(root, expectedFiles, report) {
       problems.push('test report contains an unnamed file');
       continue;
     }
-    const filePath = isAbsolute(file.name)
-      ? file.name
-      : resolve(root, file.name);
+    const filePath = isAbsolute(file.name) ? file.name : resolve(root, file.name);
     reportedFiles.add(filePath);
     if (
       file.status !== 'passed' ||
@@ -210,9 +196,7 @@ function checkTests(root, files, fullSuite, execute) {
       for (const file of report.testResults || []) {
         for (const test of file.assertionResults || []) {
           if (test.status === 'failed' && test.failureMessages?.length) {
-            const message = test.failureMessages[0]
-              .replace(/\s+/g, ' ')
-              .slice(0, 400);
+            const message = test.failureMessages[0].replace(/\s+/g, ' ').slice(0, 400);
             problems.push(`${test.fullName || file.name}: ${message}`);
             break;
           }
@@ -234,9 +218,7 @@ function checkGoals({
 } = {}) {
   const toolingProblems = inspectFiles(root, TOOLING_FILES);
   try {
-    const requiredVersion = readFileSync(join(root, '.nvmrc'), 'utf8')
-      .trim()
-      .replace(/^v/, '');
+    const requiredVersion = readFileSync(join(root, '.nvmrc'), 'utf8').trim().replace(/^v/, '');
     if (nodeVersion !== requiredVersion) {
       toolingProblems.push(
         `Node ${requiredVersion} required by .nvmrc; running ${nodeVersion} (run nvm use)`,
@@ -265,19 +247,13 @@ function checkGoals({
   const results = [];
   const allTests = [...new Set(GOALS.flatMap((goal) => goal.tests))];
   for (const goal of GOALS) {
-    const prerequisites = results.filter((result) =>
-      goal.prerequisites.includes(result.id),
-    );
-    const blocked = prerequisites.filter((result) =>
-      ['failed', 'blocked'].includes(result.status),
-    );
+    const prerequisites = results.filter((result) => goal.prerequisites.includes(result.id));
+    const blocked = prerequisites.filter((result) => ['failed', 'blocked'].includes(result.status));
     if (blocked.length > 0) {
       results.push({
         ...goal,
         status: 'blocked',
-        reasons: [
-          `unmet prerequisites: ${blocked.map((result) => result.id).join(', ')}`,
-        ],
+        reasons: [`unmet prerequisites: ${blocked.map((result) => result.id).join(', ')}`],
       });
       continue;
     }
@@ -286,14 +262,10 @@ function checkGoals({
     const problems = [
       ...(goal.id === 'G1' ? toolingProblems : []),
       ...inspectFiles(root, [...goal.files, ...expectedTests]),
-      ...gates
-        .filter((gate) => !gate.passed)
-        .map((gate) => `${gate.command}: ${gate.reason}`),
+      ...gates.filter((gate) => !gate.passed).map((gate) => `${gate.command}: ${gate.reason}`),
     ];
     if (problems.length === 0) {
-      problems.push(
-        ...checkTests(root, expectedTests, goal.id === 'G10', execute),
-      );
+      problems.push(...checkTests(root, expectedTests, goal.id === 'G10', execute));
     }
     if (problems.length > 0) {
       results.push({
@@ -304,23 +276,17 @@ function checkGoals({
       continue;
     }
 
-    const pending = prerequisites.filter(
-      (result) => result.status === 'needs manual verification',
-    );
+    const pending = prerequisites.filter((result) => result.status === 'needs manual verification');
     const reasons = [
       ...(goal.manual ? [goal.manual] : []),
       ...(pending.length
-        ? [
-            `manual prerequisites pending: ${pending.map((result) => result.id).join(', ')}`,
-          ]
+        ? [`manual prerequisites pending: ${pending.map((result) => result.id).join(', ')}`]
         : []),
     ];
     results.push({
       ...goal,
       status: reasons.length ? 'needs manual verification' : 'verified',
-      reasons: reasons.length
-        ? reasons
-        : ['required files, build, lint, and focused tests passed'],
+      reasons: reasons.length ? reasons : ['required files, build, lint, and focused tests passed'],
     });
   }
   return {
@@ -336,14 +302,10 @@ function formatReport(report) {
     '',
   ];
   for (const gate of report.gates) {
-    lines.push(
-      `${gate.command}: ${gate.passed ? 'passed' : `failed (${gate.reason})`}`,
-    );
+    lines.push(`${gate.command}: ${gate.passed ? 'passed' : `failed (${gate.reason})`}`);
   }
   if (report.gates.length === 0)
-    lines.push(
-      'Build/lint not run: tooling prerequisites are unfinished or unavailable.',
-    );
+    lines.push('Build/lint not run: tooling prerequisites are unfinished or unavailable.');
   lines.push('');
   for (const result of report.results) {
     lines.push(`${result.id} ${result.name}: ${result.status}`);

@@ -1,9 +1,27 @@
 /**
- * Purpose: Plan consistent formatting for future implementation files.
+ * Prettier configuration for the TypeScript to-do list project.
  *
- * Planning placeholder only; no implementation.
- * Pseudocode:
- * SET two-space indentation, semicolons, and single quotes.
- * FORMAT supported source, test, template, and documentation files consistently.
- * EXPOSE check/write workflows through existing npm lint/format scripts.
+ * Keeps formatting consistent across source, tests, templates, and docs.
  */
+module.exports = {
+  semi: true,
+  singleQuote: true,
+  tabWidth: 2,
+  trailingComma: 'all',
+  printWidth: 100,
+  endOfLine: 'lf',
+  overrides: [
+    {
+      files: ['*.md', '*.mdx'],
+      options: {
+        proseWrap: 'always',
+      },
+    },
+    {
+      files: ['*.json', '*.jsonc'],
+      options: {
+        trailingComma: 'all',
+      },
+    },
+  ],
+};

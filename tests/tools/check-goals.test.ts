@@ -16,11 +16,7 @@ import { dirname, join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const {
-  GOALS,
-  checkGoals,
-  formatReport,
-} = require('../../tools/check-goals.cjs');
+const { GOALS, checkGoals, formatReport } = require('../../tools/check-goals.cjs');
 
 let root: string;
 const temporaryDirectories: string[] = [];
@@ -51,9 +47,7 @@ function passingReport(files: string[]) {
 function fakeCommand() {
   return vi.fn((_cwd: string, args: string[]) => {
     if (args[0] === 'test') {
-      const files = args
-        .slice(2)
-        .filter((argument) => !argument.startsWith('--'));
+      const files = args.slice(2).filter((argument) => !argument.startsWith('--'));
       const reportPath = args
         .find((argument) => argument.startsWith('--outputFile='))!
         .slice('--outputFile='.length);
@@ -71,10 +65,7 @@ beforeEach(() => {
   temporaryDirectories.push(root);
   const files: string[] = [
     ...new Set<string>(
-      GOALS.flatMap((goal: { files: string[]; tests: string[] }) => [
-        ...goal.files,
-        ...goal.tests,
-      ]),
+      GOALS.flatMap((goal: { files: string[]; tests: string[] }) => [...goal.files, ...goal.tests]),
     ),
   ];
   for (const file of files) writeFile(file, 'implemented\n');
@@ -94,24 +85,19 @@ describe('goal checks', () => {
 
     expect(report.verified).toBe(8);
     expect(
-      report.results
-        .slice(0, 8)
-        .every((goal: { status: string }) => goal.status === 'verified'),
+      report.results.slice(0, 8).every((goal: { status: string }) => goal.status === 'verified'),
     ).toBe(true);
+    expect(report.results.slice(8).map((goal: { status: string }) => goal.status)).toEqual([
+      'needs manual verification',
+      'needs manual verification',
+    ]);
     expect(
-      report.results.slice(8).map((goal: { status: string }) => goal.status),
-    ).toEqual(['needs manual verification', 'needs manual verification']);
-    expect(
-      execute.mock.calls
-        .filter(([, args]) => args[0] === 'run')
-        .map(([, args]) => args),
+      execute.mock.calls.filter(([, args]) => args[0] === 'run').map(([, args]) => args),
     ).toEqual([
       ['run', 'build'],
       ['run', 'lint'],
     ]);
-    expect(
-      execute.mock.calls.filter(([, args]) => args[0] === 'test'),
-    ).toHaveLength(10);
+    expect(execute.mock.calls.filter(([, args]) => args[0] === 'test')).toHaveLength(10);
     expect(execute.mock.calls.at(-1)![1][2]).toBe('--reporter=json');
     expect(execute.mock.calls.every(([cwd]) => cwd === root)).toBe(true);
     expect(
@@ -139,9 +125,7 @@ describe('goal checks', () => {
     expect(report.verified).toBe(0);
     expect(report.results[0].reasons).toContain('unfinished: tsconfig.json');
     expect(
-      report.results
-        .slice(1)
-        .every((goal: { status: string }) => goal.status === 'blocked'),
+      report.results.slice(1).every((goal: { status: string }) => goal.status === 'blocked'),
     ).toBe(true);
     expect(execute).not.toHaveBeenCalled();
   });
@@ -160,32 +144,25 @@ describe('goal checks', () => {
     const report = checkGoals({ root, execute: fakeCommand() });
 
     expect(report.results[1].status).toBe('failed');
-    expect(report.results[1].reasons).toContain(
-      'missing: tests/errors.test.ts',
-    );
+    expect(report.results[1].reasons).toContain('missing: tests/errors.test.ts');
     expect(report.results[2].status).toBe('verified');
     expect(report.results[3].status).toBe('verified');
     expect(report.results[5].status).toBe('blocked');
   });
 
-  it.each(['build', 'lint'])(
-    'fails G1 if the shared %s gate fails',
-    (script) => {
-      const execute = fakeCommand();
-      execute.mockImplementation((_cwd, args) => ({
-        status: args[1] === script ? 1 : 0,
-        stdout: 'gate failure',
-        stderr: '',
-      }));
-      const report = checkGoals({ root, execute });
+  it.each(['build', 'lint'])('fails G1 if the shared %s gate fails', (script) => {
+    const execute = fakeCommand();
+    execute.mockImplementation((_cwd, args) => ({
+      status: args[1] === script ? 1 : 0,
+      stdout: 'gate failure',
+      stderr: '',
+    }));
+    const report = checkGoals({ root, execute });
 
-      expect(report.verified).toBe(0);
-      expect(report.results[0].reasons.join(' ')).toContain(
-        `npm run ${script}: exit 1`,
-      );
-      expect(execute).toHaveBeenCalledTimes(2);
-    },
-  );
+    expect(report.verified).toBe(0);
+    expect(report.results[0].reasons.join(' ')).toContain(`npm run ${script}: exit 1`);
+    expect(execute).toHaveBeenCalledTimes(2);
+  });
 
   it('requires a successful exit even if a passing JSON report was produced', () => {
     const passing = fakeCommand();
@@ -222,10 +199,8 @@ describe('goal checks', () => {
       else {
         const report = JSON.parse(readFileSync(reportPath, 'utf8'));
         if (kind === 'zero') report.numPassedTests = 0;
-        if (kind === 'excluded')
-          report.testResults[0].name = join(root, 'unrelated.test.ts');
-        if (kind === 'skipped')
-          report.testResults[0].assertionResults[0].status = 'skipped';
+        if (kind === 'excluded') report.testResults[0].name = join(root, 'unrelated.test.ts');
+        if (kind === 'skipped') report.testResults[0].assertionResults[0].status = 'skipped';
         if (kind === 'todo') report.numTodoTests = 1;
         if (kind === 'failed') report.numFailedTests = 1;
         if (kind === 'empty-file') report.testResults[0].assertionResults = [];
@@ -269,20 +244,14 @@ describe('goal checks', () => {
     expect(result.status).toBe(1);
     expect(result.stdout).toContain('0 of 10 goals verified');
     expect(result.stdout).toContain('unfinished: tsconfig.json');
-    expect(result.stdout).toContain(
-      'G10 Fresh-checkout and browser acceptance: blocked',
-    );
+    expect(result.stdout).toContain('G10 Fresh-checkout and browser acceptance: blocked');
   });
 
   it('runs real Vitest gates and rejects assertion-free tests', () => {
     mkdirSync(join(root, 'tools'));
     const script = join(root, 'tools/check-goals.cjs');
     copyFileSync(resolve('tools/check-goals.cjs'), script);
-    symlinkSync(
-      resolve('node_modules'),
-      join(root, 'node_modules'),
-      'junction',
-    );
+    symlinkSync(resolve('node_modules'), join(root, 'node_modules'), 'junction');
     writeFile(
       'package.json',
       JSON.stringify({
@@ -306,10 +275,7 @@ describe('goal checks', () => {
     ]) {
       writeFile(file, '// Planning placeholder only');
     }
-    writeFile(
-      'tests/tooling.test.ts',
-      "import { it } from 'vitest';\nit('empty', () => {});\n",
-    );
+    writeFile('tests/tooling.test.ts', "import { it } from 'vitest';\nit('empty', () => {});\n");
 
     const empty = spawnSync(process.execPath, [script], {
       cwd: tmpdir(),
@@ -318,9 +284,7 @@ describe('goal checks', () => {
     });
     expect(empty.error).toBeUndefined();
     expect(empty.stdout).toContain('0 of 10 goals verified');
-    expect(empty.stdout).toContain(
-      'expected any number of assertion, but got none',
-    );
+    expect(empty.stdout).toContain('expected any number of assertion, but got none');
 
     writeFile(
       'tests/tooling.test.ts',

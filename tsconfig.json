@@ -1,9 +1,16 @@
 {
-  // Purpose: Plan strict TypeScript compilation for the future application.
-  // Planning placeholder only; compiler settings are not implemented.
-  // Pseudocode:
-  // ENABLE strict checking and select Node-compatible module/target settings.
-  // SET src as rootDir and dist as outDir; enable source maps and interoperability.
-  // INCLUDE application source; keep test compilation under Vitest tooling.
-  // EXCLUDE generated output and dependencies.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
 }
